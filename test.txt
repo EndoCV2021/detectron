@@ -1,3 +1,0 @@
-jupyter
-ipython
-opencv-python
