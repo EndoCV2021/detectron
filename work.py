@@ -20,7 +20,7 @@ from detectron2.evaluation import (
     verify_results,
 )
 from detectron2.modeling import GeneralizedRCNNWithTTA
-
+from detectron2.data import build_detection_test_loader, build_detection_train_loader
 
 class Trainer(DefaultTrainer):
     """
@@ -97,6 +97,10 @@ class Trainer(DefaultTrainer):
         res = cls.test(cfg, model, evaluators)
         res = OrderedDict({k + "_TTA": v for k, v in res.items()})
         return res
+
+    @classmethod
+    def build_train_loader(cls, cfg):
+        return build_detection_train_loader(cfg, mapper=custom_mapper)
 
 import os
 import numpy as np
@@ -199,6 +203,42 @@ def get_polyp_dicts(data_dirs):
             dataset_dicts.append (record)
     return dataset_dicts
 
+from detectron2.data import detection_utils as utils
+import detectron2.data.transforms as T
+import copy
+import torch
+
+def custom_mapper(dataset_dict):
+    dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
+    image = utils.read_image(dataset_dict["file_name"], format="RGB")
+    transform_list = [
+#         T.Resize((800,600)),
+        T.RandomBrightness(0.8, 1.8),
+        T.RandomContrast(0.6, 1.3),
+        T.RandomSaturation(0.8, 1.4),
+#         T.RandomRotation(angle=[-90, 90], expand=False),
+        T.RandomLighting(0.7),
+        T.RandomFlip(prob=0.4, horizontal=False, vertical=True),
+        T.RandomFlip(prob=0.4, horizontal=True, vertical=False)
+    ]
+    image, transforms = T.apply_transform_gens(transform_list, image)
+    dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
+
+    annos = [
+        utils.transform_instance_annotations(
+            obj,
+            transforms,
+            image.shape[:2]
+        )
+        for obj in dataset_dict.pop("annotations")
+        if obj.get("iscrowd", 0) == 0
+    ]
+    instances = utils.annotations_to_instances(annos, image.shape[:2], mask_format = "bitmask")
+    dataset_dict["instances"] = utils.filter_empty_instances(instances)
+    return dataset_dict
+
+
+
 from detectron2.data import DatasetCatalog, MetadataCatalog
 
 def setup(args):
@@ -220,15 +260,28 @@ def setup(args):
 
     cfg = get_cfg()
     cfg.merge_from_file(args.config_file)
+
+    cfg.INPUT.MIN_SIZE_TRAIN = (800,)
+    # Sample size of smallest side by choice or random selection from range give by
+    # INPUT.MIN_SIZE_TRAIN
+    cfg.INPUT.MIN_SIZE_TRAIN_SAMPLING = "choice"
+    # Maximum size of the side of the image during training
+    cfg.INPUT.MAX_SIZE_TRAIN = 1333
+    # Size of the smallest side of the image during testing. Set to zero to disable resize in testing.
+    cfg.INPUT.MIN_SIZE_TEST = 800
+    # Maximum size of the side of the image during testing
+    cfg.INPUT.MAX_SIZE_TEST = 1333
+
     cfg.DATASETS.TRAIN = ("polyp_train",)
     cfg.DATASETS.TEST = ("polyp_val",)
     cfg.DATALOADER.NUM_WORKERS = 8
     cfg.INPUT.MASK_FORMAT = 'bitmask'
+    cfg.OUTPUT_DIR = './aug_output/'
     # cfg.MODEL.WEIGHTS = "detectron2://COCO-Detection/retinanet_R_50_FPN_3x/137849486/model_final_4cafe0.pkl"  # initialize from model zoo
     cfg.MODEL.WEIGHTS = "detectron2://COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x/137849600/model_final_f10217.pkl"  # initialize from model zoo
     # print(cfg.MODEL)
     os.makedirs (cfg.OUTPUT_DIR, exist_ok=True)
-    cfg.SOLVER.IMS_PER_BATCH = 8
+    cfg.SOLVER.IMS_PER_BATCH = 4
     cfg.SOLVER.BASE_LR = 0.00025
     cfg.SOLVER.MAX_ITER = 10000    # 300 iterations 정도면 충분합니다. 더 오랜 시간도 시도해보세요.
     cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 128   # 풍선 데이터셋과 같이 작은 데이터셋에서는 이정도면 적당합니다.
