@@ -2,6 +2,7 @@ import logging
 import os
 from collections import OrderedDict
 import torch
+import util
 
 import detectron2.utils.comm as comm
 from detectron2.checkpoint import DetectionCheckpointer
@@ -245,10 +246,12 @@ def setup(args):
     """
       Create configs and perform basic setups.
       """
+    seed = 3
+    util.seed_everything(seed)
     dir_root = './trainData_EndoCV2021_21_Feb2021-V2'
 
-    train_data_dirs = ['data_C1', 'data_C2', 'data_C4', 'data_C5']
-    val_data_dirs = ['data_C3']
+    train_data_dirs = ['data_C1', 'data_C2', 'data_C4', 'data_C3']
+    val_data_dirs = ['data_C5']
 
     dir_seq_positive = 'sequenceData/positive'
     dir_full_sp = os.path.join (dir_root, dir_seq_positive)
@@ -270,6 +273,7 @@ def setup(args):
     cfg = get_cfg ()
     cfg.merge_from_file (args.config_file)
 
+    cfg.SEED = seed
     cfg.INPUT.MIN_SIZE_TRAIN = (800,)
     # Sample size of smallest side by choice or random selection from range give by
     # INPUT.MIN_SIZE_TRAIN
@@ -290,13 +294,13 @@ def setup(args):
 
     cfg.MODEL.WEIGHTS = "https://dl.fbaipublicfiles.com/detectron2/COCO-Detection/faster_rcnn_R_50_FPN_1x/137257794/model_final_b275ba.pkl"
     os.makedirs (cfg.OUTPUT_DIR, exist_ok=True)
-    cfg.SOLVER.IMS_PER_BATCH = 2
+    cfg.SOLVER.IMS_PER_BATCH = 4
     cfg.SOLVER.BASE_LR = 0.001
     cfg.MODEL.PIXEL_MEAN = [123.675, 116.280, 103.530]
 
     cfg.SOLVER.STEPS = ()
-    cfg.SOLVER.MAX_ITER = 100000
-    cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 256
+    cfg.SOLVER.MAX_ITER = 50000
+    cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 128
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1
     cfg.MODEL.BACKBONE.FREEZE_AT = 1
 
