@@ -119,7 +119,7 @@ def get_polyp_dicts(data_dirs):
         return:
             dataset_dicts: Dictionary
     '''
-    base_dir = './trainData_EndoCV2021_5_Feb2021/'
+    base_dir = './trainData_EndoCV2021_21_Feb2021-V2/'
     dataset_dicts = []
 
     cnt = 0
@@ -243,10 +243,23 @@ from detectron2.data import DatasetCatalog, MetadataCatalog
 
 def setup(args):
     """
-    Create configs and perform basic setups.
-    """
-    train_data_dirs = ['data_C2', 'data_C3', 'data_C4', 'data_C5']
-    val_data_dirs = ['data_C1']
+      Create configs and perform basic setups.
+      """
+    dir_root = './trainData_EndoCV2021_21_Feb2021-V2'
+
+    train_data_dirs = ['data_C1', 'data_C2', 'data_C4', 'data_C5']
+    val_data_dirs = ['data_C3']
+
+    dir_seq_positive = 'sequenceData/positive'
+    dir_full_sp = os.path.join (dir_root, dir_seq_positive)
+
+    seq_data_dirs = [
+        os.path.join (dir_seq_positive, name)
+        for name in os.listdir (dir_full_sp)
+        if os.path.isdir (os.path.join (dir_full_sp, name))
+    ]
+
+    train_data_dirs.extend (seq_data_dirs)
 
     DatasetCatalog.register ("polyp_train", lambda: get_polyp_dicts (train_data_dirs))
     MetadataCatalog.get ("polyp_train").set (thing_classes=["polyp"])
@@ -254,12 +267,8 @@ def setup(args):
     DatasetCatalog.register ("polyp_val", lambda: get_polyp_dicts (val_data_dirs))
     MetadataCatalog.get ("polyp_val").set (thing_classes=["polyp"], evaluator_type=("coco"), distributed=True)
 
-    # polyp_metadata = MetadataCatalog.get ("polyp_train")
-    #
-    # dataset_dicts = get_polyp_dicts (train_data_dirs)
-
-    cfg = get_cfg()
-    cfg.merge_from_file(args.config_file)
+    cfg = get_cfg ()
+    cfg.merge_from_file (args.config_file)
 
     cfg.INPUT.MIN_SIZE_TRAIN = (800,)
     # Sample size of smallest side by choice or random selection from range give by
@@ -276,16 +285,23 @@ def setup(args):
     cfg.DATASETS.TEST = ("polyp_val",)
     cfg.DATALOADER.NUM_WORKERS = 8
     cfg.INPUT.MASK_FORMAT = 'bitmask'
-    cfg.OUTPUT_DIR = './aug_output/'
-    # cfg.MODEL.WEIGHTS = "detectron2://COCO-Detection/retinanet_R_50_FPN_3x/137849486/model_final_4cafe0.pkl"  # initialize from model zoo
-    cfg.MODEL.WEIGHTS = "detectron2://COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x/137849600/model_final_f10217.pkl"  # initialize from model zoo
-    # print(cfg.MODEL)
+    cfg.INPUT.FORMAT = 'RGB'
+    cfg.OUTPUT_DIR = './mask_rcnn_R_50_FPN_1x_c3_seq/'
+
+    cfg.MODEL.WEIGHTS = "https://dl.fbaipublicfiles.com/detectron2/COCO-Detection/faster_rcnn_R_50_FPN_1x/137257794/model_final_b275ba.pkl"
     os.makedirs (cfg.OUTPUT_DIR, exist_ok=True)
-    cfg.SOLVER.IMS_PER_BATCH = 4
-    cfg.SOLVER.BASE_LR = 0.00025
-    cfg.SOLVER.MAX_ITER = 10000    # 300 iterations 정도면 충분합니다. 더 오랜 시간도 시도해보세요.
-    cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 128   # 풍선 데이터셋과 같이 작은 데이터셋에서는 이정도면 적당합니다.
+    cfg.SOLVER.IMS_PER_BATCH = 2
+    cfg.SOLVER.BASE_LR = 0.001
+    cfg.MODEL.PIXEL_MEAN = [123.675, 116.280, 103.530]
+
+    cfg.SOLVER.STEPS = ()
+    cfg.SOLVER.MAX_ITER = 100000
+    cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 256
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1
+    cfg.MODEL.BACKBONE.FREEZE_AT = 1
+
+    cfg.SOLVER.CHECKPOINT_PERIOD = 1000
+
     cfg.merge_from_list(args.opts)
     cfg.freeze()
     default_setup(cfg, args)
