@@ -113,7 +113,7 @@ def get_polyp_dicts(data_dirs):
 def setup(pth_name):
     cfg = get_cfg()
     cfg.merge_from_file("./detectron2_repo/configs/myconfig/my_mask_rcnn_R_50_FPN_3x.yaml")
-    cfg.OUTPUT_DIR = './mask_rcnn_R_50_FPN_1x_c4_seq2'
+    cfg.OUTPUT_DIR = './mask_rcnn_R_50_FPN_1x_seq_lr0.01'
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, pth_name)
 
     cfg.DATASETS.TEST = ("polyp_val",)
@@ -135,7 +135,7 @@ def setup(pth_name):
 
     return cfg
 
-
+import matplotlib.pyplot as plt
 if __name__ == '__main__':
     # gpu settings
     print('Available cuda device ', torch.cuda.is_available())
@@ -147,24 +147,63 @@ if __name__ == '__main__':
     print('Current cuda device ', torch.cuda.current_device())  # check
 
     # validation set settings
-    val_data_dirs = ['data_C4']
+    val_data_dirs = ['data_C5']
 
     DatasetCatalog.register("polyp_val", lambda: get_polyp_dicts(val_data_dirs))
     MetadataCatalog.get("polyp_val").set(thing_classes=["polyp"])
 
     polyp_metadata = MetadataCatalog.get("polyp_val")
 
-    pth_names = ['model_0009999.pth',
-                 # 'model_0014999.pth',
-                 # 'model_0019999.pth',
-                 # 'model_0024999.pth',
-                 # 'model_0029999.pth',
-                 # 'model_0034999.pth',
-                 # 'model_0039999.pth',
-                 # 'model_0044999.pth',
-                 # 'model_0049999.pth'
-    ]
+    pth_names = []
+    for a in range(99, 10000, 100):
+        if a <= 99:
+            nm = f"model_00000{a}.pth"
+        elif a >99 and a <= 999:
+            nm = f"model_0000{a}.pth"
+        elif a > 999 and a <= 9999:
+            nm = f"model_000{a}.pth"
+        elif a > 9999 and a <= 99999:
+            nm = f"model_00{a}.pth"
+        elif a > 99999 and a <= 999999:
+            nm = f"model_0{a}.pth"
+        else:
+            nm = f"model_{a}.pth"
+        pth_names.append(nm)
+
+    # print(pth_names)
+    # pth_names = ['model_0000999.pth', 'model_0001999.pth', 'model_0002999.pth', 'model_0003999.pth', 'model_0004999.pth',
+    #              'model_0005999.pth', 'model_0006999.pth', 'model_0007999.pth', 'model_0008999.pth',
+    #              'model_0009999.pth', 'model_0010999.pth', 'model_0011999.pth', 'model_0012999.pth', 'model_0013999.pth',
+    #              'model_0014999.pth', 'model_0015999.pth', 'model_0016999.pth', 'model_0017999.pth', 'model_0018999.pth',
+    #              'model_0019999.pth', 'model_0020999.pth', 'model_0021999.pth', 'model_0022999.pth', 'model_0023999.pth',
+    #              'model_0024999.pth', 'model_0025999.pth', 'model_0026999.pth', 'model_0027999.pth', 'model_0028999.pth',
+    #              'model_0029999.pth', 'model_0030999.pth', 'model_0031999.pth', 'model_0032999.pth', 'model_0033999.pth',
+    #              'model_0034999.pth', 'model_0035999.pth', 'model_0036999.pth', 'model_0037999.pth', 'model_0038999.pth',
+    #              'model_0039999.pth', 'model_0040999.pth', 'model_0041999.pth', 'model_0042999.pth', 'model_0043999.pth',
+    #              'model_0044999.pth', 'model_0045999.pth', 'model_0046999.pth', 'model_0047999.pth', 'model_0048999.pth',
+    #              'model_0049999.pth',
+    #              'model_0054999.pth',
+    #              'model_0059999.pth',
+    #              'model_0064999.pth',
+    #              'model_0069999.pth',
+    #              'model_0074999.pth',
+    #              'model_0079999.pth',
+    #              'model_0084999.pth',
+    #              'model_0089999.pth',
+    #              'model_0094999.pth',
+    #              'model_0099999.pth'
+    # ]
     # configuration settings
+
+    bbox_ap = []
+    seg_ap = []
+
+    def fc_1(AP, AP50, AP75, APs, APm, APl):
+        return AP
+
+    def fc(bbox, segm):
+        bbox_ap.append(fc_1(**bbox))
+        seg_ap.append(fc_1(**segm))
 
     for pth_name in pth_names:
         cfg = setup(pth_name=pth_name)
@@ -175,4 +214,17 @@ if __name__ == '__main__':
         val_loader = build_detection_test_loader(cfg, "polyp_val")
 
         res = inference_on_dataset(predictor.model, val_loader, evaluator)
+        print(pth_name)
         print(res)
+        fc(**res)
+
+    fig = plt.figure() ## 캔버스 생성
+    fig.set_facecolor('white') ## 캔버스 색상 설정
+    ax = fig.add_subplot() ## 그림 뼈대(프레임) 생성
+
+    ax.plot(bbox_ap,marker='o',label='bbox') ## 선그래프 생성
+    ax.plot(seg_ap,marker='o',label='seg')
+
+    ax.legend() ## 범례
+    plt.show()
+
